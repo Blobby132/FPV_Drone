@@ -163,6 +163,12 @@ namespace FPVSim.Flight
             GameplayEvents.RaiseFlightModeChanged(this, mode);
         }
 
+        /// <summary>Switches between Angle (self-level) and Acro (rate) mode.</summary>
+        public void ToggleFlightMode()
+        {
+            SetFlightMode(mode == FlightMode.Angle ? FlightMode.Acro : FlightMode.Angle);
+        }
+
         /// <summary>Puts the drone at <paramref name="pose"/>, at rest, motors armed, everything reset.</summary>
         public void Respawn(Pose pose)
         {

@@ -66,8 +66,10 @@ namespace FPVSim.Flight
                 throttle = ApplyTiltCompensation(throttle, state.attitude, tuning, airframe);
             }
 
-            // 2) Rate setpoint.
-            Vector3 setpointRpy = AngleController.ComputeSetpoint(command, state.attitude, tuning);
+            // 2) Rate setpoint: acro maps sticks straight to body rates; angle mode runs the self-level loop.
+            Vector3 setpointRpy = mode == FlightMode.Acro
+                ? AcroSetpoint(command, tuning)
+                : AngleController.ComputeSetpoint(command, state.attitude, tuning);
 
             // 3) Rate PID. Hold the I term while resting on something at low throttle so it can't wind up
             //    against the ground (Betaflight does the same below a throttle threshold).
@@ -77,6 +79,19 @@ namespace FPVSim.Flight
             // 4) Inverse model: angular acceleration -> normalized mixer commands.
             Vector3 axisCommand = airframe.AccelerationToCommand(accelerationRpy);
             return new FlightOutput(throttle, axisCommand, setpointRpy);
+        }
+
+        /// <summary>
+        /// Acro (rate) mode: each stick axis commands a body rate through the Betaflight rate curve. With the
+        /// sticks centered the setpoint is zero, so the rate PID simply holds whatever attitude the quad is in.
+        /// </summary>
+        /// <returns>Rate setpoint as an RPY vector, rad/s.</returns>
+        public static Vector3 AcroSetpoint(in PilotCommand command, DroneTuning tuning)
+        {
+            return new Vector3(
+                BetaflightRates.RateDegPerSec(command.roll, tuning.rollRates),
+                BetaflightRates.RateDegPerSec(command.pitch, tuning.pitchRates),
+                BetaflightRates.RateDegPerSec(command.yaw, tuning.yawRates)) * Mathf.Deg2Rad;
         }
 
         /// <summary>

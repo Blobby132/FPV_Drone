@@ -67,6 +67,7 @@ namespace FPVSim.Core
             references.drone.Initialize(tuning, commandSource, pilot.startFlightMode);
 
             references.input.RespawnPressed += OnRespawnPressed;
+            references.input.FlightModeTogglePressed += OnFlightModeTogglePressed;
         }
 
         private void Start()
@@ -91,6 +92,7 @@ namespace FPVSim.Core
             if (references.input != null)
             {
                 references.input.RespawnPressed -= OnRespawnPressed;
+                references.input.FlightModeTogglePressed -= OnFlightModeTogglePressed;
             }
 
             gameMode?.End();
@@ -108,6 +110,11 @@ namespace FPVSim.Core
         private void OnRespawnPressed()
         {
             gameMode?.OnRespawnRequested();
+        }
+
+        private void OnFlightModeTogglePressed()
+        {
+            references.drone.ToggleFlightMode();
         }
 
         private void ApplyPhysicsRate(DroneTuning tuning)
