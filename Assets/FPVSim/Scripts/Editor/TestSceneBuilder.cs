@@ -1,8 +1,10 @@
 using System.Linq;
+using FPVSim.Cameras;
 using FPVSim.Controls;
 using FPVSim.Core;
 using FPVSim.Flight;
 using FPVSim.Settings;
+using FPVSim.UserInterface;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -78,8 +80,10 @@ namespace FPVSim.EditorTools
             var drone = (GameObject)PrefabUtility.InstantiatePrefab(dronePrefab, scene);
             drone.transform.SetPositionAndRotation(spawn.Pose.position, spawn.Pose.rotation);
 
-            BuildCamera(drone.GetComponent<DroneController>());
-            BuildSession(tuning, pilot, drone.GetComponent<DroneController>(), spawn);
+            var droneController = drone.GetComponent<DroneController>();
+            CameraRig cameraRig = BuildCameraRig(spawn);
+            var osd = new GameObject("OSD").AddComponent<OsdView>();
+            BuildSession(tuning, pilot, droneController, spawn, cameraRig, osd);
 
             Progress("Saving", 0.95f);
             AssetUtility.EnsureFolder(EditorPaths.Scenes);
@@ -118,21 +122,22 @@ namespace FPVSim.EditorTools
             GameObjectUtility.SetStaticEditorFlags(ground, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
         }
 
-        /// <summary>Temporary FPV camera parented to the drone's mount (replaced by the camera rig later).</summary>
-        private static void BuildCamera(DroneController drone)
+        /// <summary>The single scene camera, driven by CameraRig (FPV / chase).</summary>
+        private static CameraRig BuildCameraRig(SpawnPoint spawn)
         {
-            var cameraObject = new GameObject("Main Camera");
+            var cameraObject = new GameObject("CameraRig");
             cameraObject.tag = "MainCamera";
             var camera = cameraObject.AddComponent<Camera>();
-            camera.nearClipPlane = 0.03f;
+            camera.nearClipPlane = 0.02f;
             camera.farClipPlane = 3000f;
-            camera.fieldOfView = 90f;
+            camera.fieldOfView = 88f;
             cameraObject.AddComponent<AudioListener>();
-            cameraObject.transform.SetParent(drone.CameraMount, false);
-            cameraObject.transform.localRotation = Quaternion.Euler(-25f, 0f, 0f);
+            cameraObject.transform.SetPositionAndRotation(spawn.transform.position + new Vector3(0f, 1.2f, -3f), Quaternion.identity);
+            return cameraObject.AddComponent<CameraRig>();
         }
 
-        private static void BuildSession(DroneTuning tuning, PilotSettings pilot, DroneController drone, SpawnPoint spawn)
+        private static void BuildSession(DroneTuning tuning, PilotSettings pilot, DroneController drone, SpawnPoint spawn,
+            CameraRig cameraRig, OsdView osd)
         {
             var sessionObject = new GameObject("GameSession");
             var settings = sessionObject.AddComponent<SettingsManager>();
@@ -147,6 +152,8 @@ namespace FPVSim.EditorTools
             refs.drone = drone;
             refs.spawnPoint = spawn;
             refs.gameMode = freeFly;
+            refs.cameraRig = cameraRig;
+            refs.osd = osd;
             EditorUtility.SetDirty(session);
         }
 

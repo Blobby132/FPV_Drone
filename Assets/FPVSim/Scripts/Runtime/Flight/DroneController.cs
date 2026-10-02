@@ -42,6 +42,7 @@ namespace FPVSim.Flight
         private readonly QuadMixer mixer = new QuadMixer();
         private readonly MotorModel motors = new MotorModel();
         private readonly float[] motorCommands = new float[QuadAirframe.MotorCount];
+        private readonly BatterySimulator battery = new BatterySimulator();
 
         private Rigidbody body;
         private DroneTuning tuning;
@@ -87,6 +88,9 @@ namespace FPVSim.Flight
         public Vector3 SetpointRpy => lastOutput.setpointRpy;
 
         public IReadOnlyList<float> MotorOutputs => motors.Outputs;
+
+        /// <summary>Cosmetic battery state for the OSD.</summary>
+        public BatterySimulator Battery => battery;
         public float AverageMotorOutput => motors.AverageOutput;
 
         /// <summary>Speed in m/s.</summary>
@@ -119,6 +123,7 @@ namespace FPVSim.Flight
 
             ConfigureRigidbody();
             launchPosition = transform.position;
+            battery.Reset(tuning);
         }
 
         /// <summary>Called by the GameSession with the runtime tuning copy and the pilot.</summary>
@@ -135,6 +140,7 @@ namespace FPVSim.Flight
             appliedMass = -1f; // force mass properties to be re-applied
             ApplyMassProperties();
             flightController.Reset();
+            battery.Reset(tuning);
         }
 
         /// <summary>Swap the pilot (e.g. a replay or AI later on).</summary>
@@ -191,6 +197,7 @@ namespace FPVSim.Flight
             lastOutput = default;
             motors.Reset();
             flightController.Reset();
+            battery.Reset(tuning);
             commandSource?.ResetState();
 
             Respawned?.Invoke();
@@ -234,6 +241,7 @@ namespace FPVSim.Flight
             motors.Step(motorCommands, tuning.motorIdle, tuning.motorSpinUpTime, tuning.motorSpinDownTime, dt, running);
             ApplyMotorForces(airframe, attitude);
             ApplyAerodynamics(attitude);
+            battery.Step(motors.AverageOutput, tuning, dt);
         }
 
         private void ApplyMotorForces(in QuadAirframe airframe, Quaternion attitude)

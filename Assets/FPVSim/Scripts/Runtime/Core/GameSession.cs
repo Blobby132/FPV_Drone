@@ -1,7 +1,9 @@
 using System;
+using FPVSim.Cameras;
 using FPVSim.Controls;
 using FPVSim.Flight;
 using FPVSim.Settings;
+using FPVSim.UserInterface;
 using UnityEngine;
 
 namespace FPVSim.Core
@@ -22,6 +24,8 @@ namespace FPVSim.Core
             public PilotInputReader input;
             public DroneController drone;
             public SpawnPoint spawnPoint;
+            public CameraRig cameraRig;
+            public OsdView osd;
 
             [Tooltip("A component implementing IGameMode. Defaults to FreeFlyMode.")]
             public MonoBehaviour gameMode;
@@ -39,6 +43,8 @@ namespace FPVSim.Core
         public SettingsManager Settings => references.settings;
         public PilotInputReader PilotInput => references.input;
         public DroneController Drone => references.drone;
+        public CameraRig CameraRig => references.cameraRig;
+        public OsdView Osd => references.osd;
         public IGameMode GameMode => gameMode;
         public PilotCommandSource CommandSource => commandSource;
 
@@ -65,9 +71,27 @@ namespace FPVSim.Core
 
             commandSource = new PilotCommandSource(references.input, pilot);
             references.drone.Initialize(tuning, commandSource, pilot.startFlightMode);
+            references.drone.Respawned += OnDroneRespawned;
 
-            references.input.RespawnPressed += OnRespawnPressed;
-            references.input.FlightModeTogglePressed += OnFlightModeTogglePressed;
+            if (references.cameraRig != null)
+            {
+                references.cameraRig.Initialize(references.drone, pilot);
+            }
+            else
+            {
+                Debug.LogWarning("[FPV Sim] GameSession: no CameraRig found; the view will not follow the drone.", this);
+            }
+
+            if (references.osd != null)
+            {
+                references.osd.Initialize(references.drone, references.cameraRig, pilot);
+            }
+
+            PilotInputReader input = references.input;
+            input.RespawnPressed += OnRespawnPressed;
+            input.FlightModeTogglePressed += OnFlightModeTogglePressed;
+            input.CameraTogglePressed += OnCameraTogglePressed;
+            input.CameraTiltStepPressed += OnCameraTiltStepPressed;
         }
 
         private void Start()
@@ -93,6 +117,13 @@ namespace FPVSim.Core
             {
                 references.input.RespawnPressed -= OnRespawnPressed;
                 references.input.FlightModeTogglePressed -= OnFlightModeTogglePressed;
+                references.input.CameraTogglePressed -= OnCameraTogglePressed;
+                references.input.CameraTiltStepPressed -= OnCameraTiltStepPressed;
+            }
+
+            if (references.drone != null)
+            {
+                references.drone.Respawned -= OnDroneRespawned;
             }
 
             gameMode?.End();
@@ -115,6 +146,30 @@ namespace FPVSim.Core
         private void OnFlightModeTogglePressed()
         {
             references.drone.ToggleFlightMode();
+        }
+
+        private void OnCameraTogglePressed()
+        {
+            if (references.cameraRig != null)
+            {
+                references.cameraRig.ToggleView();
+            }
+        }
+
+        private void OnCameraTiltStepPressed(int direction)
+        {
+            if (references.cameraRig != null)
+            {
+                references.cameraRig.StepUptilt(direction);
+            }
+        }
+
+        private void OnDroneRespawned()
+        {
+            if (references.cameraRig != null)
+            {
+                references.cameraRig.SnapChase();
+            }
         }
 
         private void ApplyPhysicsRate(DroneTuning tuning)
@@ -162,6 +217,16 @@ namespace FPVSim.Core
             if (references.gameMode == null)
             {
                 references.gameMode = GetComponent<FreeFlyMode>();
+            }
+
+            if (references.cameraRig == null)
+            {
+                references.cameraRig = FindFirstObjectByType<CameraRig>();
+            }
+
+            if (references.osd == null)
+            {
+                references.osd = FindFirstObjectByType<OsdView>();
             }
         }
     }
