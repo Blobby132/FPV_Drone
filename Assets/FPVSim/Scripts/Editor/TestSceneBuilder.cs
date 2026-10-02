@@ -8,7 +8,7 @@ using FPVSim.UserInterface;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 namespace FPVSim.EditorTools
@@ -68,10 +68,11 @@ namespace FPVSim.EditorTools
             Progress("Scene", 0.35f);
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            BuildLighting();
+            Progress("Lighting and sky", 0.4f);
+            LightingBuilder.Build();
 
-            Progress("Environment", 0.5f);
-            BuildGround();
+            Progress("Environment (terrain, town, trees, rings)", 0.5f);
+            EnvironmentBuilder.Build();
 
             Progress("Gameplay objects", 0.8f);
             var spawn = new GameObject("SpawnPoint").AddComponent<SpawnPoint>();
@@ -96,32 +97,6 @@ namespace FPVSim.EditorTools
             Debug.Log("[FPV Sim] Test scene built: " + EditorPaths.TestScene + ". Press Play to fly.");
         }
 
-        private static void BuildLighting()
-        {
-            var sun = new GameObject("Sun").AddComponent<Light>();
-            sun.type = LightType.Directional;
-            sun.intensity = 1.3f;
-            sun.color = new Color(1f, 0.96f, 0.88f);
-            sun.shadows = LightShadows.Soft;
-            sun.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
-            RenderSettings.sun = sun;
-
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.55f, 0.65f, 0.8f);
-            RenderSettings.ambientEquatorColor = new Color(0.45f, 0.5f, 0.52f);
-            RenderSettings.ambientGroundColor = new Color(0.22f, 0.22f, 0.2f);
-        }
-
-        private static void BuildGround()
-        {
-            Material grass = MaterialLibrary.Lit("Ground_Placeholder", new Color(0.32f, 0.5f, 0.24f), 0.1f);
-            GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.name = "Ground";
-            ground.transform.localScale = new Vector3(200f, 1f, 200f); // Unity's plane is 10 m -> 2 km
-            ground.GetComponent<MeshRenderer>().sharedMaterial = grass;
-            GameObjectUtility.SetStaticEditorFlags(ground, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
-        }
-
         /// <summary>The single scene camera, driven by CameraRig (FPV / chase).</summary>
         private static CameraRig BuildCameraRig(SpawnPoint spawn)
         {
@@ -132,6 +107,14 @@ namespace FPVSim.EditorTools
             camera.farClipPlane = 3000f;
             camera.fieldOfView = 88f;
             cameraObject.AddComponent<AudioListener>();
+
+            UniversalAdditionalCameraData urpData = camera.GetUniversalAdditionalCameraData();
+            if (urpData != null)
+            {
+                urpData.renderPostProcessing = true;
+                urpData.antialiasing = AntialiasingMode.None; // MSAA 4x is set on the URP asset
+            }
+
             cameraObject.transform.SetPositionAndRotation(spawn.transform.position + new Vector3(0f, 1.2f, -3f), Quaternion.identity);
             return cameraObject.AddComponent<CameraRig>();
         }
