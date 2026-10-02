@@ -2,6 +2,7 @@ using System.Linq;
 using FPVSim.Cameras;
 using FPVSim.Controls;
 using FPVSim.Core;
+using FPVSim.Feedback;
 using FPVSim.Flight;
 using FPVSim.Settings;
 using FPVSim.UserInterface;
@@ -84,7 +85,8 @@ namespace FPVSim.EditorTools
             var droneController = drone.GetComponent<DroneController>();
             CameraRig cameraRig = BuildCameraRig(spawn);
             var osd = new GameObject("OSD").AddComponent<OsdView>();
-            BuildSession(tuning, pilot, droneController, spawn, cameraRig, osd);
+            var pauseMenu = new GameObject("PauseMenu").AddComponent<PauseMenu>();
+            BuildSession(tuning, pilot, droneController, spawn, cameraRig, osd, pauseMenu);
 
             Progress("Saving", 0.95f);
             AssetUtility.EnsureFolder(EditorPaths.Scenes);
@@ -120,13 +122,14 @@ namespace FPVSim.EditorTools
         }
 
         private static void BuildSession(DroneTuning tuning, PilotSettings pilot, DroneController drone, SpawnPoint spawn,
-            CameraRig cameraRig, OsdView osd)
+            CameraRig cameraRig, OsdView osd, PauseMenu pauseMenu)
         {
             var sessionObject = new GameObject("GameSession");
             var settings = sessionObject.AddComponent<SettingsManager>();
             settings.SetDefaults(tuning, pilot);
             var input = sessionObject.AddComponent<PilotInputReader>();
             var freeFly = sessionObject.AddComponent<FreeFlyMode>();
+            var rumble = sessionObject.AddComponent<RumbleFeedback>();
             var session = sessionObject.AddComponent<GameSession>();
 
             GameSession.SceneReferences refs = session.References;
@@ -137,6 +140,8 @@ namespace FPVSim.EditorTools
             refs.gameMode = freeFly;
             refs.cameraRig = cameraRig;
             refs.osd = osd;
+            refs.pauseMenu = pauseMenu;
+            refs.rumble = rumble;
             EditorUtility.SetDirty(session);
         }
 

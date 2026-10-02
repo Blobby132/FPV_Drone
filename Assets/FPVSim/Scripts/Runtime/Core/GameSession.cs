@@ -1,6 +1,7 @@
 using System;
 using FPVSim.Cameras;
 using FPVSim.Controls;
+using FPVSim.Feedback;
 using FPVSim.Flight;
 using FPVSim.Settings;
 using FPVSim.UserInterface;
@@ -26,6 +27,8 @@ namespace FPVSim.Core
             public SpawnPoint spawnPoint;
             public CameraRig cameraRig;
             public OsdView osd;
+            public PauseMenu pauseMenu;
+            public RumbleFeedback rumble;
 
             [Tooltip("A component implementing IGameMode. Defaults to FreeFlyMode.")]
             public MonoBehaviour gameMode;
@@ -36,6 +39,7 @@ namespace FPVSim.Core
         private PilotCommandSource commandSource;
         private IGameMode gameMode;
         private int appliedPhysicsRate;
+        private bool paused;
 
         /// <summary>Scene references (assigned by the editor scene builder, or found at runtime).</summary>
         public SceneReferences References => references;
@@ -47,6 +51,7 @@ namespace FPVSim.Core
         public OsdView Osd => references.osd;
         public IGameMode GameMode => gameMode;
         public PilotCommandSource CommandSource => commandSource;
+        public bool IsPaused => paused;
 
         public Pose SpawnPose =>
             references.spawnPoint != null
@@ -63,8 +68,10 @@ namespace FPVSim.Core
                 return;
             }
 
-            DroneTuning tuning = references.settings.Tuning;
-            PilotSettings pilot = references.settings.Pilot;
+            SettingsManager settings = references.settings;
+            DroneTuning tuning = settings.Tuning;
+            PilotSettings pilot = settings.Pilot;
+            settings.BindInput(references.input.Actions); // loads saved binding overrides
 
             Time.maximumDeltaTime = 0.1f; // avoid a physics "spiral of death" after hitches
             ApplyPhysicsRate(tuning);
@@ -87,11 +94,30 @@ namespace FPVSim.Core
                 references.osd.Initialize(references.drone, references.cameraRig, pilot);
             }
 
+            if (references.rumble != null)
+            {
+                references.rumble.Initialize(references.drone, pilot);
+            }
+
+            if (references.pauseMenu != null)
+            {
+                references.pauseMenu.Initialize(new PauseMenu.Context
+                {
+                    settings = settings,
+                    input = references.input,
+                    quit = Quit,
+                    notify = ShowToast,
+                });
+                references.pauseMenu.Closed += OnMenuClosed;
+            }
+
             PilotInputReader input = references.input;
             input.RespawnPressed += OnRespawnPressed;
             input.FlightModeTogglePressed += OnFlightModeTogglePressed;
             input.CameraTogglePressed += OnCameraTogglePressed;
             input.CameraTiltStepPressed += OnCameraTiltStepPressed;
+            input.PausePressed += OnPausePressed;
+            UpdateResetHint();
         }
 
         private void Start()
@@ -108,7 +134,10 @@ namespace FPVSim.Core
         private void Update()
         {
             ApplyPhysicsRate(references.settings.Tuning);
-            gameMode?.Tick(Time.deltaTime);
+            if (!paused)
+            {
+                gameMode?.Tick(Time.deltaTime);
+            }
         }
 
         private void OnDestroy()
@@ -119,6 +148,7 @@ namespace FPVSim.Core
                 references.input.FlightModeTogglePressed -= OnFlightModeTogglePressed;
                 references.input.CameraTogglePressed -= OnCameraTogglePressed;
                 references.input.CameraTiltStepPressed -= OnCameraTiltStepPressed;
+                references.input.PausePressed -= OnPausePressed;
             }
 
             if (references.drone != null)
@@ -126,7 +156,93 @@ namespace FPVSim.Core
                 references.drone.Respawned -= OnDroneRespawned;
             }
 
+            if (references.pauseMenu != null)
+            {
+                references.pauseMenu.Closed -= OnMenuClosed;
+            }
+
+            if (paused)
+            {
+                Time.timeScale = 1f;
+            }
+
             gameMode?.End();
+        }
+
+        /// <summary>Pauses or resumes the simulation (time scale 0, flight controls off, rumble stopped).</summary>
+        public void SetPaused(bool value)
+        {
+            paused = value;
+            Time.timeScale = value ? 0f : 1f;
+            references.input.SetFlightControlsEnabled(!value);
+            if (value && references.rumble != null)
+            {
+                references.rumble.StopAll();
+            }
+        }
+
+        private void OnPausePressed()
+        {
+            PauseMenu menu = references.pauseMenu;
+            if (menu == null)
+            {
+                return;
+            }
+
+            if (menu.IsOpen)
+            {
+                menu.Close(); // resumes via OnMenuClosed
+                return;
+            }
+
+            SetPaused(true);
+            menu.Open();
+            if (!menu.IsOpen)
+            {
+                SetPaused(false);
+            }
+        }
+
+        private void OnMenuClosed()
+        {
+            SetPaused(false);
+            if (references.settings.IsDirty && references.settings.Save())
+            {
+                ShowToast("SETTINGS SAVED");
+            }
+
+            UpdateResetHint();
+        }
+
+        private void Quit()
+        {
+            if (references.settings.IsDirty)
+            {
+                references.settings.Save();
+            }
+
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        private void ShowToast(string message)
+        {
+            if (references.osd != null)
+            {
+                references.osd.ShowToast(message);
+            }
+        }
+
+        private void UpdateResetHint()
+        {
+            if (references.osd != null)
+            {
+                references.osd.SetResetButtonName(
+                    ControlNames.ForAction(references.input.FindAction(FpvInputActions.Respawn)));
+            }
         }
 
         /// <summary>Puts the drone back on the spawn point (used by game modes).</summary>
@@ -161,6 +277,7 @@ namespace FPVSim.Core
             if (references.cameraRig != null)
             {
                 references.cameraRig.StepUptilt(direction);
+                references.settings.MarkDirty();
             }
         }
 
@@ -227,6 +344,16 @@ namespace FPVSim.Core
             if (references.osd == null)
             {
                 references.osd = FindFirstObjectByType<OsdView>();
+            }
+
+            if (references.pauseMenu == null)
+            {
+                references.pauseMenu = FindFirstObjectByType<PauseMenu>();
+            }
+
+            if (references.rumble == null)
+            {
+                references.rumble = FindFirstObjectByType<RumbleFeedback>();
             }
         }
     }

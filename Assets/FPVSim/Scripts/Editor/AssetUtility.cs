@@ -49,6 +49,13 @@ namespace FPVSim.EditorTools
         {
             EnsureFolder(Path.GetDirectoryName(path)?.Replace('\\', '/'));
             T existing = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (existing is Texture)
+            {
+                // Pixel data is safest to write fresh; materials are regenerated and pick up the new texture.
+                AssetDatabase.DeleteAsset(path);
+                existing = null;
+            }
+
             if (existing != null && existing != generated)
             {
                 EditorUtility.CopySerialized(generated, existing);
