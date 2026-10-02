@@ -28,6 +28,15 @@ FVector FFPVFlightController::ComputeRateSetpoints(const FFPVPilotCommand& Comma
 
 	switch (Command.FlightMode)
 	{
+	case EFPVFlightMode::Acro:
+	{
+		// Rate mode: sticks command rotation rates directly. With centered sticks the setpoint is
+		// zero rate, so the drone holds whatever attitude it is in (no self-leveling).
+		Setpoint.X = FPVFlightMath::BetaflightRate(Command.Roll, Tuning.Rates.Roll);
+		Setpoint.Y = FPVFlightMath::BetaflightRate(Command.Pitch, Tuning.Rates.Pitch);
+		break;
+	}
+
 	case EFPVFlightMode::Angle:
 	default:
 	{

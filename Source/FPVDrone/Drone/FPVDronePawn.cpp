@@ -343,6 +343,10 @@ void AFPVDronePawn::ApplyTuning(const FFPVDroneTuning& NewTuning)
 
 void AFPVDronePawn::SetFlightMode(EFPVFlightMode NewMode)
 {
+	if (NewMode != FlightMode)
+	{
+		UE_LOG(LogFPVDrone, Log, TEXT("Flight mode: %s"), *UEnum::GetDisplayValueAsText(NewMode).ToString());
+	}
 	FlightMode = NewMode;
 	// Re-send the last command so the physics thread switches mode immediately.
 	SetPilotCommand(LastCommand);

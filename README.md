@@ -11,7 +11,7 @@ and engine basic shapes, so the repository is plain text.
 Milestone progress:
 
 - [x] 1. Project skeleton, GameMode, drone pawn, controller input, Angle mode
-- [ ] 2. Acro mode, mode toggle, throttle modes
+- [x] 2. Acro mode, mode toggle, throttle modes
 - [ ] 3. Cameras, OSD, input debug overlay
 - [ ] 4. Runtime environment and lighting
 - [ ] 5. Settings menu, JSON persistence, rumble
@@ -54,6 +54,28 @@ Flying uses only the two thumbsticks, like an RC radio (Mode 2 by default):
 | WASD / arrows | Left / right stick | |
 
 *(More buttons are added in later milestones.)*
+
+### Flight modes (Triangle toggles at any time)
+
+- **Angle (default, easy).** The right stick sets a target tilt, up to *Max tilt* (45°). Center the
+  stick and the drone levels itself. Yaw is rate-based.
+- **Acro (realistic).** All three axes are rate-based, using Betaflight rates (RC rate, super rate,
+  expo). Centered sticks command zero rotation, so the drone holds whatever attitude it is in,
+  including upside down. This is how real FPV freestyle and racing quads fly.
+
+Switching modes resets the PID integrators so the new mode starts cleanly, even mid-flight.
+
+### Throttle modes (gamepad sticks spring back to center)
+
+- **Hover-centered (default).** Throttle stick centered = hover. Pushing up adds thrust up to 100%;
+  pulling down reduces it to motor idle. The hover point is computed from thrust-to-weight, motor
+  idle and the throttle curve, so the drone holds altitude with the stick centered. You can switch it
+  to a manual value in settings. Tilting the drone needs a bit more throttle to hold height, just like
+  a real quad (there is no altitude hold).
+- **Latched.** Up/down *ramps* a held throttle value that stays where it is when you let go, like the
+  non-centering throttle stick on an RC radio. Ramp speed (default 75% per second at full
+  deflection) is configurable. The held value starts at 0 and resets on respawn. Switching to latched mid-flight
+  keeps the current throttle, so the drone doesn't drop.
 
 ## Code layout
 
