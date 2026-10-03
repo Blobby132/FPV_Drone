@@ -16,7 +16,7 @@ UFPVPassThroughTriggerComponent::UFPVPassThroughTriggerComponent()
 	SetGenerateOverlapEvents(true);
 	SetCanEverAffectNavigation(false);
 	SetHiddenInGame(true);
-	BoxExtent = FVector(75.0, 100.0, 100.0);
+	InitBoxExtent(FVector(75.0, 100.0, 100.0));
 }
 
 void UFPVPassThroughTriggerComponent::BeginPlay()

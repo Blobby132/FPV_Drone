@@ -10,7 +10,9 @@
 #include "Input/FPVPlayerController.h"
 #include "UI/FPVHudCanvas.h"
 #include "UI/FPVInputDebugRenderer.h"
+#include "UI/FPVMenuRenderer.h"
 #include "UI/FPVOsdRenderer.h"
+#include "UI/FPVSettingsMenu.h"
 
 AFPVHUD::AFPVHUD()
 {
@@ -60,6 +62,17 @@ void AFPVHUD::DrawHUD()
 		FFPVInputDebugData DebugData;
 		BuildInputDebugData(*Controller, Drone, DebugData);
 		FPVInputDebugRenderer::Draw(HudCanvas, DebugData);
+	}
+
+	// The menu draws last, on top of everything.
+	if (const UFPVSettingsMenu* Menu = Controller->GetMenu())
+	{
+		if (Menu->IsOpen())
+		{
+			FFPVMenuView MenuView;
+			Menu->BuildView(MenuView);
+			FPVMenuRenderer::Draw(HudCanvas, MenuView);
+		}
 	}
 }
 

@@ -15,6 +15,7 @@
 class UBoxComponent;
 class UCameraComponent;
 class UFPVCameraRigComponent;
+class UPrimitiveComponent;
 class USpringArmComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
