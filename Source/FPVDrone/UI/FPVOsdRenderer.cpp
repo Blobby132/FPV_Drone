@@ -16,9 +16,9 @@ namespace FPVOsdColors
 	const FLinearColor BarBack(0.0f, 0.0f, 0.0f, 0.35f);
 }
 
-namespace
+namespace FPVOsdHelpers
 {
-	FLinearColor BatteryColor(float RemainingFraction)
+	FLinearColor GetBatteryStatusColor(float RemainingFraction)
 	{
 		if (RemainingFraction > 0.5f)
 		{
@@ -62,20 +62,20 @@ void FPVOsdRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVOsdData& Data)
 		Canvas.Text(TEXT("CHASE CAM"), W * 0.5f, CenterY, Warn, FFPVHudCanvas::MediumFont(), 1.0f, EFPVTextAlign::Center);
 		CenterY += RowH;
 	}
-	if (Data.Battery.RemainingFraction < 0.2f && BlinkOn())
+	if (Data.Battery.RemainingFraction < 0.2f && FPVOsdHelpers::BlinkOn())
 	{
 		Canvas.Text(TEXT("LOW BATTERY"), W * 0.5f, CenterY, Bad, FFPVHudCanvas::MediumFont(), 1.0f, EFPVTextAlign::Center);
 	}
 
 	// ---- Top right: battery and timer ---------------------------------------------------------
-	const FLinearColor BatteryTextColor = BatteryColor(Data.Battery.RemainingFraction);
+	const FLinearColor BatteryTextColor = FPVOsdHelpers::GetBatteryStatusColor(Data.Battery.RemainingFraction);
 	Canvas.Text(FString::Printf(TEXT("%.1fV"), Data.Battery.PackVoltage), W - Margin, Margin, BatteryTextColor,
 		FFPVHudCanvas::LargeFont(), 1.2f, EFPVTextAlign::Right);
 	Canvas.Text(FString::Printf(TEXT("%dS  %.2fV/cell  %.0f%%"), Data.CellCount, Data.Battery.CellVoltage, Data.Battery.RemainingFraction * 100.0f),
 		W - Margin, Margin + RowH * 1.5f, Dim, FFPVHudCanvas::MediumFont(), 0.8f, EFPVTextAlign::Right);
 	Canvas.Text(FString::Printf(TEXT("%.0fA  %.0fmAh"), Data.Battery.CurrentAmps, Data.Battery.ConsumedMah),
 		W - Margin, Margin + RowH * 2.3f, Dim, FFPVHudCanvas::MediumFont(), 0.8f, EFPVTextAlign::Right);
-	Canvas.Text(FormatTime(Data.FlightTimeSeconds), W - Margin, Margin + RowH * 3.1f, Primary, FFPVHudCanvas::MediumFont(), 0.9f, EFPVTextAlign::Right);
+	Canvas.Text(FPVOsdHelpers::FormatTime(Data.FlightTimeSeconds), W - Margin, Margin + RowH * 3.1f, Primary, FFPVHudCanvas::MediumFont(), 0.9f, EFPVTextAlign::Right);
 
 	// ---- Center: crosshair (FPV only) ---------------------------------------------------------
 	if (Data.CameraView == EFPVCameraView::FPV)

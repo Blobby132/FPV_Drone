@@ -8,6 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "FPVTestEnvironment.generated.h"
 
+class AFPVGate;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UStaticMesh;
@@ -38,6 +39,19 @@ protected:
 
 	void BuildGround();
 	void BuildLaunchPad();
+	void BuildHills();
+	void BuildTown();
+	void BuildBando();
+	void BuildWindowWall();
+	void BuildTrees();
+	void BuildSlalomPoles();
+	void BuildGates();
+
+	void AddTree(const FVector& GroundLocationCm, float HeightCm, bool bConifer);
+	AFPVGate* SpawnGate(const FVector& LocationCm, float YawDeg, bool bRing, float OpeningCm, float BottomCm, const FLinearColor& Color);
+
+	/** True if a point (cm) is inside the area kept free around the launch pad and gate course. */
+	bool IsInReservedArea(const FVector2D& PointCm) const;
 
 	UPROPERTY(VisibleAnywhere, Category = "Environment")
 	TObjectPtr<USceneComponent> Root;
@@ -65,6 +79,13 @@ protected:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Shapes;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AFPVGate>> Gates;
+
+	/** Seed for the randomized parts (trees, building sizes). Same seed = same world. */
+	UPROPERTY(EditAnywhere, Category = "Environment")
+	int32 RandomSeed = 1337;
 
 	/** Half size of the square ground plane (cm). */
 	UPROPERTY(EditAnywhere, Category = "Environment")

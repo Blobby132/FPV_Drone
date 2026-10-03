@@ -7,7 +7,7 @@ namespace FPVDebugColors
 {
 	const FLinearColor Panel(0.0f, 0.0f, 0.0f, 0.65f);
 	const FLinearColor Header(1.0f, 0.8f, 0.25f, 1.0f);
-	const FLinearColor Text(0.92f, 0.92f, 0.92f, 1.0f);
+	const FLinearColor TextColor(0.92f, 0.92f, 0.92f, 1.0f);
 	const FLinearColor Dim(0.65f, 0.65f, 0.65f, 1.0f);
 	const FLinearColor Raw(1.0f, 1.0f, 1.0f, 1.0f);
 	const FLinearColor Shaped(0.3f, 1.0f, 0.4f, 1.0f);
@@ -17,7 +17,7 @@ namespace FPVDebugColors
 	const FLinearColor Warning(1.0f, 0.4f, 0.3f, 1.0f);
 }
 
-namespace
+namespace FPVDebugDraw
 {
 	/** Draws a square stick visualizer: raw position (white) and processed position (green). */
 	void DrawStickBox(const FFPVHudCanvas& Canvas, float X, float Y, float Size, const FString& Label,
@@ -69,7 +69,7 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 
 	// Stick visualizers.
 	const float BoxSize = Canvas.S(130.0f);
-	DrawStickBox(Canvas, ColA, Y, BoxSize, TEXT("Left stick"),
+	FPVDebugDraw::DrawStickBox(Canvas, ColA, Y, BoxSize, TEXT("Left stick"),
 		Data.ActionSticks.LeftX, Data.ActionSticks.LeftY, Data.ShapedSticks.LeftX, Data.ShapedSticks.LeftY);
 	DrawStickBox(Canvas, ColA + BoxSize + Pad * 2.0f, Y, BoxSize, TEXT("Right stick"),
 		Data.ActionSticks.RightX, Data.ActionSticks.RightY, Data.ShapedSticks.RightX, Data.ShapedSticks.RightY);
@@ -83,8 +83,8 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 	for (const FFPVDebugAxis& Axis : Data.RawAxes)
 	{
 		const bool bTrigger = Axis.Name.Contains(TEXT("2"));
-		Canvas.Text(Axis.Name, ColA, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
-		Canvas.Text(FString::Printf(TEXT("%+.3f"), Axis.Value), ColA + NameW, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(Axis.Name, ColA, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(FString::Printf(TEXT("%+.3f"), Axis.Value), ColA + NameW, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 		Canvas.Bar(ColA + NameW + ValueW, Y + Row * 0.25f, ColW - NameW - ValueW, Row * 0.5f,
 			Axis.Value, bTrigger ? 0.0f : -1.0f, 1.0f, 0.0f, Raw, BarBack);
 		Y += Row;
@@ -102,10 +102,10 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 		const float CellX = ColA + CellW * static_cast<float>(Index % Columns);
 		const float CellY = Y + Row * static_cast<float>(Index / Columns);
 		Canvas.Rect(CellX + Canvas.S(1.0f), CellY + Canvas.S(1.0f), CellW - Canvas.S(2.0f), Row - Canvas.S(2.0f), Button.bDown ? ButtonDown : ButtonUp);
-		Canvas.Text(Button.Name, CellX + Canvas.S(6.0f), CellY + Canvas.S(2.0f), Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(Button.Name, CellX + Canvas.S(6.0f), CellY + Canvas.S(2.0f), TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 	}
 	Y += Row * static_cast<float>((Data.Buttons.Num() + Columns - 1) / Columns) + Row * 0.3f;
-	Canvas.Text(FString::Printf(TEXT("Last pressed: %s"), *Data.LastPressedButton), ColA, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+	Canvas.Text(FString::Printf(TEXT("Last pressed: %s"), *Data.LastPressedButton), ColA, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 
 	// ============================ Column B: processed / flight view ============================
 	Y = Y0 + Pad + Canvas.S(40.0f);
@@ -122,8 +122,8 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 	};
 	for (const FStickRow& StickRow : StickRows)
 	{
-		Canvas.Text(StickRow.Name, ColB, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
-		Canvas.Text(FString::Printf(TEXT("%+.3f  ->  %+.3f"), StickRow.Action, StickRow.Shaped), ColB + NameW, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(StickRow.Name, ColB, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(FString::Printf(TEXT("%+.3f  ->  %+.3f"), StickRow.Action, StickRow.Shaped), ColB + NameW, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 		const float BarX = ColB + NameW + Canvas.S(160.0f);
 		Canvas.Bar(BarX, Y + Row * 0.25f, ColB + ColW - BarX, Row * 0.5f, StickRow.Shaped, -1.0f, 1.0f, 0.0f, Shaped, BarBack);
 		Y += Row;
@@ -133,7 +133,7 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 	Canvas.Text(TEXT("PILOT COMMAND"), ColB, Y, Header, Font, 1.0f, EFPVTextAlign::Left, false);
 	Y += Row;
 	Canvas.Text(FString::Printf(TEXT("Throttle %5.1f%%   Roll %+.2f   Pitch %+.2f   Yaw %+.2f"),
-		Data.Command.Throttle * 100.0f, Data.Command.Roll, Data.Command.Pitch, Data.Command.Yaw), ColB, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Data.Command.Throttle * 100.0f, Data.Command.Roll, Data.Command.Pitch, Data.Command.Yaw), ColB, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 	Y += Row;
 	Canvas.Text(FString::Printf(TEXT("%s   Throttle: %s   (hover point %.1f%%)"),
 		*Data.StickModeText, *Data.ThrottleModeText, Data.HoverThrottle * 100.0f), ColB, Y, Dim, Font, 1.0f, EFPVTextAlign::Left, false);
@@ -151,9 +151,9 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 	const FVector& Gyro = Data.Telemetry.GyroDegS;
 	for (int32 Axis = 0; Axis < 3; ++Axis)
 	{
-		Canvas.Text(AxisNames[Axis], ColB, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
-		Canvas.Text(FString::Printf(TEXT("%+8.1f"), Setpoint[Axis]), ColB + Canvas.S(250.0f), Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
-		Canvas.Text(FString::Printf(TEXT("%+8.1f"), Gyro[Axis]), ColB + Canvas.S(360.0f), Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(AxisNames[Axis], ColB, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(FString::Printf(TEXT("%+8.1f"), Setpoint[Axis]), ColB + Canvas.S(250.0f), Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(FString::Printf(TEXT("%+8.1f"), Gyro[Axis]), ColB + Canvas.S(360.0f), Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 		Y += Row;
 	}
 	Y += Row * 0.3f;
@@ -164,15 +164,15 @@ void FPVInputDebugRenderer::Draw(const FFPVHudCanvas& Canvas, const FFPVInputDeb
 	{
 		const float MX = ColB + MotorW * static_cast<float>(Index);
 		const float Output = Data.Telemetry.MotorOutputs[Index];
-		Canvas.Text(FString::Printf(TEXT("%s %3.0f%%"), FPVQuadLayout::MotorName(Index), Output * 100.0f), MX, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Canvas.Text(FString::Printf(TEXT("%s %3.0f%%"), FPVQuadLayout::MotorName(Index), Output * 100.0f), MX, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 		Canvas.Bar(MX, Y + Row, MotorW - Canvas.S(10.0f), Row * 0.5f, Output, 0.0f, 1.0f, 0.0f, Shaped, BarBack);
 	}
 	Y += Row * 2.2f;
 
 	Canvas.Text(FString::Printf(TEXT("Mixer throttle %.1f%%   Thrust %.1f N   %s"),
 		Data.Telemetry.MixerThrottle * 100.0f, Data.Telemetry.TotalThrustN, Data.Telemetry.bMixerSaturated ? TEXT("SATURATED") : TEXT("")),
-		ColB, Y, Data.Telemetry.bMixerSaturated ? Warning : Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		ColB, Y, Data.Telemetry.bMixerSaturated ? Warning : TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 	Y += Row;
 	Canvas.Text(FString::Printf(TEXT("Physics %.0f Hz (dt %.2f ms)   Render %.0f fps"),
-		Data.PhysicsHz, Data.Telemetry.LastPhysicsDt * 1000.0f, Data.Fps), ColB, Y, Text, Font, 1.0f, EFPVTextAlign::Left, false);
+		Data.PhysicsHz, Data.Telemetry.LastPhysicsDt * 1000.0f, Data.Fps), ColB, Y, TextColor, Font, 1.0f, EFPVTextAlign::Left, false);
 }

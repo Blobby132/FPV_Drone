@@ -10,6 +10,9 @@
 
 #include "Core/FPVGameMode.h"
 #include "Drone/FPVDronePawn.h"
+#include "Gameplay/FPVGameplayEvents.h"
+#include "Gameplay/FPVPassThroughTriggerComponent.h"
+#include "HAL/PlatformTime.h"
 #include "Input/FPVGamepadKeys.h"
 #include "Input/FPVInputConfig.h"
 #include "Settings/FPVSettingsSubsystem.h"
@@ -60,6 +63,11 @@ void AFPVPlayerController::BeginPlay()
 		SettingsChangedHandle = Settings->OnSettingsChanged.AddUObject(this, &AFPVPlayerController::HandleSettingsChanged);
 	}
 
+	if (UFPVGameplayEvents* Events = UFPVGameplayEvents::Get(this))
+	{
+		Events->OnTriggerPassed.AddDynamic(this, &AFPVPlayerController::HandleTriggerPassed);
+	}
+
 	// SetupInputComponent normally already did this; repeat in case the local player wasn't ready then.
 	EnsureInputConfig();
 	AddFlightMappingContext();
@@ -72,6 +80,11 @@ void AFPVPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		Settings->OnSettingsChanged.Remove(SettingsChangedHandle);
 	}
 	SettingsChangedHandle.Reset();
+
+	if (UFPVGameplayEvents* Events = UFPVGameplayEvents::Get(this))
+	{
+		Events->OnTriggerPassed.RemoveDynamic(this, &AFPVPlayerController::HandleTriggerPassed);
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -256,4 +269,33 @@ void AFPVPlayerController::AdjustCameraTilt(float DeltaDegrees)
 void AFPVPlayerController::OnToggleInputDebug()
 {
 	bShowInputDebug = !bShowInputDebug;
+}
+
+void AFPVPlayerController::ShowFlashMessage(const FString& Message)
+{
+	FlashMessage = Message;
+	FlashMessageTime = FPlatformTime::Seconds();
+}
+
+bool AFPVPlayerController::GetFlashMessage(FString& OutMessage, float& OutAgeSeconds) const
+{
+	if (FlashMessageTime < 0.0 || FlashMessage.IsEmpty())
+	{
+		return false;
+	}
+	OutAgeSeconds = static_cast<float>(FPlatformTime::Seconds() - FlashMessageTime);
+	OutMessage = FlashMessage;
+	return true;
+}
+
+void AFPVPlayerController::HandleTriggerPassed(AFPVDronePawn* Drone, UFPVPassThroughTriggerComponent* Trigger, bool bForward)
+{
+	// Free-fly has no course; just acknowledge the gate. A race mode would check order here.
+	if (Drone != GetDrone() || Trigger == nullptr)
+	{
+		return;
+	}
+	ShowFlashMessage(Trigger->TriggerIndex >= 0
+		? FString::Printf(TEXT("GATE %d%s"), Trigger->TriggerIndex + 1, bForward ? TEXT("") : TEXT(" (reverse)"))
+		: FString(TEXT("THROUGH!")));
 }

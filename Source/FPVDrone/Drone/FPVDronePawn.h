@@ -74,6 +74,10 @@ public:
 	/** Height of the drone's underside above the ground at the launch point (m). */
 	float GetAltitudeMeters() const;
 
+	/** Impacts softer than this speed change (m/s) are ignored (resting / sliding contact). */
+	UPROPERTY(EditAnywhere, Category = "Drone|Impacts")
+	float MinImpactSpeedMps = 0.75f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -91,6 +95,11 @@ private:
 	void UpdateBattery(float DeltaSeconds);
 	/** Finds the ground below a location (line trace) and stores it as the altitude reference. */
 	void UpdateHomeGround(const FVector& FromLocation);
+
+	/** Collision callback: measures how hard the hit was and broadcasts UFPVGameplayEvents::OnDroneImpact. */
+	UFUNCTION()
+	void HandleBodyHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		FVector NormalImpulse, const FHitResult& Hit);
 
 	/** Physics body (root). Collision box roughly covering the frame and props. */
 	UPROPERTY(VisibleAnywhere, Category = "Drone")
@@ -137,6 +146,9 @@ private:
 	float FlightTimeSeconds = 0.0f;
 	/** World Z (cm) of the ground at the launch point. */
 	double HomeGroundZCm = 0.0;
+	/** Velocity at the end of the previous tick (cm/s), used to estimate impact speed. */
+	FVector LastVelocityCmPerSec = FVector::ZeroVector;
+	double LastImpactTimeSeconds = -1.0;
 	float PropAnglesDeg[FPVQuad::NumMotors] = { 0.0f, 45.0f, 90.0f, 135.0f };
 
 	TSharedPtr<FFPVDronePhysicsBridge, ESPMode::ThreadSafe> PhysicsBridge;

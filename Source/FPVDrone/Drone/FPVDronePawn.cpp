@@ -19,6 +19,7 @@
 #include "Camera/FPVCameraRigComponent.h"
 #include "Flight/FPVQuadMixer.h"
 #include "Flight/FPVUnits.h"
+#include "Gameplay/FPVGameplayEvents.h"
 #include "Physics/FPVDroneSimCallback.h"
 #include "FPVDrone.h"
 
@@ -195,6 +196,8 @@ void AFPVDronePawn::BeginPlay()
 	Battery.Reset(BatterySettings);
 	FlightTimeSeconds = 0.0f;
 	UpdateHomeGround(GetActorLocation());
+
+	Body->OnComponentHit.AddDynamic(this, &AFPVDronePawn::HandleBodyHit);
 }
 
 void AFPVDronePawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -336,6 +339,48 @@ void AFPVDronePawn::Tick(float DeltaSeconds)
 	UpdatePropVisuals(DeltaSeconds);
 	UpdateBattery(DeltaSeconds);
 	FlightTimeSeconds += DeltaSeconds;
+	LastVelocityCmPerSec = Body->GetPhysicsLinearVelocity();
+}
+
+void AFPVDronePawn::HandleBodyHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	FVector NormalImpulse, const FHitResult& Hit)
+{
+	const UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	// One impact per bounce: Chaos can report several contact points for the same hit.
+	const double Now = World->GetTimeSeconds();
+	if (LastImpactTimeSeconds >= 0.0 && Now - LastImpactTimeSeconds < 0.15)
+	{
+		return;
+	}
+
+	// Two estimates of how hard the hit was (m/s), take the larger:
+	//  - the collision impulse divided by mass (Unreal impulse is kg*cm/s -> cm/s -> m/s),
+	//  - the velocity we had just before the hit, projected onto the surface normal.
+	const float Mass = FMath::Max(Body->GetMass(), 0.01f);
+	const float ImpulseSpeed = static_cast<float>(NormalImpulse.Size()) / Mass * FPVUnits::MetersPerCm;
+	const FVector Normal = Hit.ImpactNormal;
+	const float ApproachSpeed = static_cast<float>(FMath::Abs(FVector::DotProduct(LastVelocityCmPerSec, Normal))) * FPVUnits::MetersPerCm;
+	const float ImpactSpeed = FMath::Max(ImpulseSpeed, ApproachSpeed);
+	if (ImpactSpeed < MinImpactSpeedMps)
+	{
+		return;
+	}
+	LastImpactTimeSeconds = Now;
+
+	FFPVImpactInfo Impact;
+	Impact.ImpactSpeedMps = ImpactSpeed;
+	Impact.Location = Hit.ImpactPoint;
+	Impact.Normal = Normal;
+	Impact.OtherActor = OtherActor;
+	if (UFPVGameplayEvents* Events = UFPVGameplayEvents::Get(this))
+	{
+		Events->OnDroneImpact.Broadcast(this, Impact);
+	}
 }
 
 void AFPVDronePawn::UpdateBattery(float DeltaSeconds)
@@ -448,7 +493,13 @@ void AFPVDronePawn::ResetDrone(const FTransform& SpawnTransform)
 	// A fresh pack and timer for every flight.
 	Battery.Reset(BatterySettings);
 	FlightTimeSeconds = 0.0f;
+	LastVelocityCmPerSec = FVector::ZeroVector;
 	UpdateHomeGround(SpawnTransform.GetLocation());
+
+	if (UFPVGameplayEvents* Events = UFPVGameplayEvents::Get(this))
+	{
+		Events->OnDroneReset.Broadcast(this);
+	}
 }
 
 FFPVFlightTelemetry AFPVDronePawn::GetTelemetry() const

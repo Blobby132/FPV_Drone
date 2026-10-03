@@ -13,7 +13,7 @@ Milestone progress:
 - [x] 1. Project skeleton, GameMode, drone pawn, controller input, Angle mode
 - [x] 2. Acro mode, mode toggle, throttle modes
 - [x] 3. Cameras, OSD, input debug overlay
-- [ ] 4. Runtime environment and lighting
+- [x] 4. Runtime environment and lighting
 - [ ] 5. Settings menu, JSON persistence, rumble
 
 ---
@@ -111,6 +111,44 @@ Switching modes resets the PID integrators so the new mode starts cleanly, even 
   deflection) is configurable. The held value starts at 0 and resets on respawn. Switching to latched mid-flight
   keeps the current throttle, so the drone doesn't drop.
 
+## Test world (spawned at runtime)
+
+`AFPVGameMode` spawns everything when you press Play, in any level:
+
+- **Lighting** (only the parts the level is missing): sun, sky atmosphere, real-time sky light,
+  exponential height fog. A level that already has a directional light keeps it, and so on.
+- **Ground:** a 2 km × 2 km slab with the engine grid material, which gives a good sense of speed.
+  The launch pad is at the origin, with an arrow showing the spawn heading (+X).
+- **Gates:** six gates (square and ring, numbered) in a loose loop around the pad. The first one
+  is straight ahead at 25 m. Each has a pass-through trigger, and flying through shows "GATE n".
+- **Town:** a 5 × 5 grid of buildings 140–300 m ahead, taller in the middle, with rooftop boxes.
+- **Bando:** two towers joined by a bridge, forming a 10 m window plus a low walkway to dive under (left, about 80 m).
+- **Window wall:** a 40 m wall with three 4 × 4 m windows at different heights (behind the pad).
+- **Forest:** about 90 trees behind the pad (round and conifer), plus about 60 scattered elsewhere.
+- **Slalom:** nine red and white 15 m poles to the right of the pad.
+- **Hills:** large spheres mostly buried in the ground, so only a low dome shows. Uniform scale keeps
+  sphere collision exact; Chaos doesn't support non-uniformly scaled sphere collision.
+
+Everything uses engine basic shapes with collision. The layout is deterministic (fixed random seed).
+To fly in your own level, set `bSpawnTestEnvironment=False` (and optionally
+`bSpawnLightingIfMissing=False`) in `Config/DefaultGame.ini`. The drone spawns at the level's
+PlayerStart if there is one.
+
+## Gameplay events (for future gates, races and timers)
+
+`UFPVGameplayEvents` (a world subsystem) is the single place where gameplay announces things.
+Nothing calls race logic directly:
+
+| Event | Fired by | Used by (now) |
+|---|---|---|
+| `OnTriggerPassed(Drone, Trigger, bForward)` | `UFPVPassThroughTriggerComponent` (in every `AFPVGate`) | "GATE n" message |
+| `OnDroneImpact(Drone, ImpactInfo)` | `AFPVDronePawn` hit callback | rumble (milestone 5) |
+| `OnDroneReset(Drone)` | `AFPVDronePawn::ResetDrone` | (free for timers) |
+
+A race mode can subclass `AFPVGameMode` (override `SpawnWorldContent` / `GetDroneSpawnTransform`),
+collect gates by `AFPVGate::GetGateIndex()`, and subscribe to these events. The drone, the gates
+and the HUD don't need to change.
+
 ## Code layout
 
 ```
@@ -129,7 +167,11 @@ Source/FPVDrone/
                FPVStickProcessor        dead zone, expo, inversion, smoothing, Mode 1/2, throttle modes
   Settings/    FPVSettingsTypes         every tunable value (USTRUCTs)
                FPVSettingsSubsystem     active settings + change notifications
-  World/       FPVTestEnvironment       runtime basic-shape world
+  World/       FPVTestEnvironment       runtime basic-shape world (ground, hills, town, bando, trees, poles)
+               FPVGate                  square / ring gate + pass-through trigger
+               FPVSkyLighting           sun, sky atmosphere, sky light, fog (only what's missing)
+  Gameplay/    FPVGameplayEvents        world event bus (trigger passed, impact, reset)
+               FPVPassThroughTriggerComponent  detects a drone flying through a volume
   Camera/      FPVCameraRigComponent    FPV / chase camera switching, uptilt, FOV
   UI/          FPVHUD                   canvas HUD: gathers data, calls the renderers below
                FPVOsdRenderer           Betaflight-style OSD
@@ -210,6 +252,13 @@ check on first compile and play:
     doesn't, everything shows the default material color.
 11. **`EngineAssociation: "5.8"`**, `BuildSettingsVersion.Latest`, `EngineIncludeOrderVersion.Latest`.
 12. **`/Engine/Maps/Entry`** as the startup/default map.
+13. **Lighting component setters/properties:** `UDirectionalLightComponent::SetAtmosphereSunLight`,
+    `ULightComponentBase::Intensity`, `USkyLightComponent::bRealTimeCapture` (set in the
+    constructor), and `UExponentialHeightFogComponent::SetFogDensity` / `SetFogHeightFalloff`.
+14. **Overlap events for a fast physics body** against the gates' static trigger boxes. The triggers
+    are 1.5 m deep so a fast drone overlaps them for at least one frame.
+15. **Hit event `NormalImpulse`** magnitude from Chaos (used together with the pre-hit velocity
+    to estimate impact speed).
 
 ## Git notes
 

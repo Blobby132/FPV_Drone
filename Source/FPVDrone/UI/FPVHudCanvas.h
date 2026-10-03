@@ -31,10 +31,10 @@ public:
 	static UFont* LargeFont();
 
 	/** Text size in screen pixels. TextScale is relative to the reference resolution. */
-	FVector2D MeasureText(const FString& Text, UFont* Font, float TextScale = 1.0f) const;
+	FVector2D MeasureText(const FString& InText, UFont* Font, float TextScale = 1.0f) const;
 
 	/** Draws text (with a 1-pixel drop shadow for readability over the 3D view). */
-	void Text(const FString& Text, float X, float Y, const FLinearColor& Color, UFont* Font,
+	void Text(const FString& InText, float X, float Y, const FLinearColor& Color, UFont* Font,
 		float TextScale = 1.0f, EFPVTextAlign Align = EFPVTextAlign::Left, bool bShadow = true) const;
 
 	void Rect(float X, float Y, float W, float H, const FLinearColor& Color) const;

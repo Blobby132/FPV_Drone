@@ -30,7 +30,7 @@ void FFPVButtonBindings::SetKeyName(EFPVButtonAction Action, FName KeyName)
 	}
 }
 
-namespace
+namespace FPVSettingsSanitize
 {
 	void ClampValue(float& Value, float Min, float Max)
 	{
@@ -60,6 +60,8 @@ namespace
 
 void FFPVUserSettings::Sanitize()
 {
+	using namespace FPVSettingsSanitize;
+
 	FFPVDroneTuning& T = Drone;
 
 	SanitizeRates(T.Rates.Roll);

@@ -11,6 +11,7 @@
 
 class AFPVDronePawn;
 class UFPVInputConfig;
+class UFPVPassThroughTriggerComponent;
 
 UCLASS()
 class FPVDRONE_API AFPVPlayerController : public APlayerController
@@ -40,6 +41,9 @@ public:
 	/** Most recently pressed gamepad button (for the input debug overlay). */
 	const FKey& GetLastPressedKey() const { return LastPressedKey; }
 
+	/** Short message to flash on screen (e.g. "GATE 3"); returns false when there is none. */
+	bool GetFlashMessage(FString& OutMessage, float& OutAgeSeconds) const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -56,6 +60,11 @@ private:
 	void ApplySettingsToDrone(const FFPVUserSettings& Settings, bool bResetFlightMode);
 
 	void TrackLastPressedKey();
+	void ShowFlashMessage(const FString& Message);
+
+	UFUNCTION()
+	void HandleTriggerPassed(AFPVDronePawn* Drone, UFPVPassThroughTriggerComponent* Trigger, bool bForward);
+
 	void AdjustCameraTilt(float DeltaDegrees);
 
 	// ---- Button handlers --------------------------------------------------------------------
@@ -73,6 +82,8 @@ private:
 	FFPVStickValues RawSticks;
 	bool bShowInputDebug = false;
 	FKey LastPressedKey;
+	FString FlashMessage;
+	double FlashMessageTime = -1.0;
 	FDelegateHandle SettingsChangedHandle;
 
 	/** Used only if the settings subsystem is unavailable. */

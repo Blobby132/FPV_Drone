@@ -27,21 +27,21 @@ UFont* FFPVHudCanvas::LargeFont()
 	return GEngine ? GEngine->GetLargeFont() : nullptr;
 }
 
-FVector2D FFPVHudCanvas::MeasureText(const FString& Text, UFont* Font, float TextScale) const
+FVector2D FFPVHudCanvas::MeasureText(const FString& InText, UFont* Font, float TextScale) const
 {
 	float OutWidth = 0.0f;
 	float OutHeight = 0.0f;
-	Hud.GetTextSize(Text, OutWidth, OutHeight, Font, TextScale * Scale);
+	Hud.GetTextSize(InText, OutWidth, OutHeight, Font, TextScale * Scale);
 	return FVector2D(OutWidth, OutHeight);
 }
 
-void FFPVHudCanvas::Text(const FString& Text, float X, float Y, const FLinearColor& Color, UFont* Font,
+void FFPVHudCanvas::Text(const FString& InText, float X, float Y, const FLinearColor& Color, UFont* Font,
 	float TextScale, EFPVTextAlign Align, bool bShadow) const
 {
 	float DrawX = X;
 	if (Align != EFPVTextAlign::Left)
 	{
-		const FVector2D Size = MeasureText(Text, Font, TextScale);
+		const FVector2D Size = MeasureText(InText, Font, TextScale);
 		DrawX -= (Align == EFPVTextAlign::Center) ? static_cast<float>(Size.X) * 0.5f : static_cast<float>(Size.X);
 	}
 
@@ -49,9 +49,9 @@ void FFPVHudCanvas::Text(const FString& Text, float X, float Y, const FLinearCol
 	if (bShadow)
 	{
 		const float Offset = FMath::Max(1.0f, S(1.5f));
-		Hud.DrawText(Text, FLinearColor(0.0f, 0.0f, 0.0f, Color.A * 0.85f), DrawX + Offset, Y + Offset, Font, FinalScale);
+		Hud.DrawText(InText, FLinearColor(0.0f, 0.0f, 0.0f, Color.A * 0.85f), DrawX + Offset, Y + Offset, Font, FinalScale);
 	}
-	Hud.DrawText(Text, Color, DrawX, Y, Font, FinalScale);
+	Hud.DrawText(InText, Color, DrawX, Y, Font, FinalScale);
 }
 
 void FFPVHudCanvas::Rect(float X, float Y, float W, float H, const FLinearColor& Color) const

@@ -45,6 +45,16 @@ void AFPVHUD::DrawHUD()
 		FPVOsdRenderer::Draw(HudCanvas, OsdData);
 	}
 
+	FString FlashMessage;
+	float FlashAge = 0.0f;
+	constexpr float FlashDuration = 1.5f;
+	if (Controller->GetFlashMessage(FlashMessage, FlashAge) && FlashAge < FlashDuration)
+	{
+		const float Alpha = FMath::Clamp((FlashDuration - FlashAge) / 0.4f, 0.0f, 1.0f);
+		HudCanvas.Text(FlashMessage, HudCanvas.GetWidth() * 0.5f, HudCanvas.GetHeight() * 0.28f,
+			FLinearColor(1.0f, 0.85f, 0.2f, Alpha), FFPVHudCanvas::LargeFont(), 1.4f, EFPVTextAlign::Center);
+	}
+
 	if (Controller->IsInputDebugVisible())
 	{
 		FFPVInputDebugData DebugData;

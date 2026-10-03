@@ -5,7 +5,7 @@
 #include "InputModifiers.h"
 #include "FPVDrone.h"
 
-namespace
+namespace FPVInputConfigNames
 {
 	const TCHAR* GetButtonActionObjectName(EFPVButtonAction Action)
 	{
@@ -41,7 +41,7 @@ void UFPVInputConfig::Initialize(const FFPVButtonBindings& Bindings)
 	ButtonActions.SetNum(static_cast<int32>(EFPVButtonAction::Count));
 	for (int32 Index = 0; Index < ButtonActions.Num(); ++Index)
 	{
-		ButtonActions[Index] = CreateAction(GetButtonActionObjectName(static_cast<EFPVButtonAction>(Index)), false, false);
+		ButtonActions[Index] = CreateAction(FPVInputConfigNames::GetButtonActionObjectName(static_cast<EFPVButtonAction>(Index)), false, false);
 	}
 
 	// Menu actions must work while the game is paused.
