@@ -6,6 +6,7 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "PhysicsEngine/BodyInstance.h"
@@ -15,6 +16,7 @@
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "PBDRigidsSolver.h"
 
+#include "Camera/FPVCameraRigComponent.h"
 #include "Flight/FPVQuadMixer.h"
 #include "Flight/FPVUnits.h"
 #include "Physics/FPVDroneSimCallback.h"
@@ -78,7 +80,30 @@ AFPVDronePawn::AFPVDronePawn()
 	FpvCamera->bUsePawnControlRotation = false;
 	FpvCamera->PostProcessSettings.bOverride_MotionBlurAmount = true;
 	FpvCamera->PostProcessSettings.MotionBlurAmount = 0.0f;
-	ApplyCameraSettings(FFPVCameraSettings());
+
+	// --- Chase camera (debug) ----------------------------------------------------------------
+	// Follows the drone's heading but keeps the horizon level (no pitch/roll inheritance).
+	ChaseArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("ChaseArm"));
+	ChaseArm->SetupAttachment(Body);
+	ChaseArm->SetRelativeRotation(FRotator(-15.0, 0.0, 0.0));
+	ChaseArm->TargetArmLength = 300.0f;
+	ChaseArm->SocketOffset = FVector(0.0, 0.0, 30.0);
+	ChaseArm->bUsePawnControlRotation = false;
+	ChaseArm->bInheritPitch = false;
+	ChaseArm->bInheritRoll = false;
+	ChaseArm->bInheritYaw = true;
+	ChaseArm->bEnableCameraLag = true;
+	ChaseArm->CameraLagSpeed = 10.0f;
+	ChaseArm->bEnableCameraRotationLag = true;
+	ChaseArm->CameraRotationLagSpeed = 8.0f;
+	ChaseArm->bDoCollisionTest = true;
+
+	ChaseCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ChaseCamera"));
+	ChaseCamera->SetupAttachment(ChaseArm, USpringArmComponent::SocketName);
+	ChaseCamera->bUsePawnControlRotation = false;
+	ChaseCamera->SetAutoActivate(false);
+	ChaseCamera->PostProcessSettings.bOverride_MotionBlurAmount = true;
+	ChaseCamera->PostProcessSettings.MotionBlurAmount = 0.0f;
 
 	// --- Visuals (engine basic shapes only) --------------------------------------------------
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMeshFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -86,6 +111,15 @@ AFPVDronePawn::AFPVDronePawn()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> BaseMaterialFinder(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	BaseMaterial = BaseMaterialFinder.Object;
 	BuildVisuals(CubeMeshFinder.Object, CylinderMeshFinder.Object);
+
+	// --- Camera rig (switches FPV / chase, hides the drone's own meshes in FPV) --------------
+	CameraRig = CreateDefaultSubobject<UFPVCameraRigComponent>(TEXT("CameraRig"));
+	TArray<UPrimitiveComponent*> HiddenInFpv;
+	for (UStaticMeshComponent* Part : VisualParts)
+	{
+		HiddenInFpv.Add(Part);
+	}
+	CameraRig->Setup(FpvCamera, ChaseArm, ChaseCamera, HiddenInFpv);
 }
 
 UStaticMeshComponent* AFPVDronePawn::AddVisualPart(const FName& Name, UStaticMesh* Mesh, const FVector& LocationCm,
@@ -142,12 +176,6 @@ void AFPVDronePawn::BuildVisuals(UStaticMesh* CubeMesh, UStaticMesh* CylinderMes
 			Motor + FVector(0.0, 0.0, 0.1), FRotator(0.0, PropAnglesDeg[Index], 0.0), FVector(12.7, 1.3, 0.25),
 			bFront ? FrontPropColor : RearPropColor);
 	}
-
-	// Don't draw the drone's own meshes into the FPV view (they would clip the near plane).
-	for (UStaticMeshComponent* Part : VisualParts)
-	{
-		Part->SetOwnerNoSee(true);
-	}
 }
 
 void AFPVDronePawn::BeginPlay()
@@ -163,6 +191,10 @@ void AFPVDronePawn::BeginPlay()
 
 	RegisterPhysicsCallback();
 	PushBodyToPhysicsThread();
+
+	Battery.Reset(BatterySettings);
+	FlightTimeSeconds = 0.0f;
+	UpdateHomeGround(GetActorLocation());
 }
 
 void AFPVDronePawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -302,6 +334,46 @@ void AFPVDronePawn::Tick(float DeltaSeconds)
 
 	PushBodyToPhysicsThread();
 	UpdatePropVisuals(DeltaSeconds);
+	UpdateBattery(DeltaSeconds);
+	FlightTimeSeconds += DeltaSeconds;
+}
+
+void AFPVDronePawn::UpdateBattery(float DeltaSeconds)
+{
+	// Electrical power grows roughly with output^1.5 (thrust^1.5 for a fixed prop).
+	const FFPVFlightTelemetry Telemetry = GetTelemetry();
+	float PowerSum = 0.0f;
+	for (int32 Index = 0; Index < FPVQuad::NumMotors; ++Index)
+	{
+		PowerSum += FMath::Pow(FMath::Clamp(Telemetry.MotorOutputs[Index], 0.0f, 1.0f), 1.5f);
+	}
+	Battery.Update(DeltaSeconds, PowerSum / static_cast<float>(FPVQuad::NumMotors), BatterySettings);
+}
+
+void AFPVDronePawn::UpdateHomeGround(const FVector& FromLocation)
+{
+	// Fallback: treat the spawn point as standing on the ground.
+	HomeGroundZCm = FromLocation.Z - FPVDroneGeometry::BodyHalfExtentCm.Z;
+
+	UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(FPVDroneHomeTrace), false, this);
+	const FVector Start = FromLocation + FVector(0.0, 0.0, 50.0);
+	const FVector End = FromLocation - FVector(0.0, 0.0, 10000.0);
+	if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	{
+		HomeGroundZCm = Hit.ImpactPoint.Z;
+	}
+}
+
+float AFPVDronePawn::GetAltitudeMeters() const
+{
+	const double UndersideZ = GetActorLocation().Z - FPVDroneGeometry::BodyHalfExtentCm.Z;
+	return static_cast<float>((UndersideZ - HomeGroundZCm) * FPVUnits::MetersPerCm);
 }
 
 void AFPVDronePawn::UpdatePropVisuals(float DeltaSeconds)
@@ -372,6 +444,11 @@ void AFPVDronePawn::ResetDrone(const FTransform& SpawnTransform)
 		PhysicsBridge->SetPilotCommand(LastCommand);
 		PhysicsBridge->RequestControllerReset();
 	}
+
+	// A fresh pack and timer for every flight.
+	Battery.Reset(BatterySettings);
+	FlightTimeSeconds = 0.0f;
+	UpdateHomeGround(SpawnTransform.GetLocation());
 }
 
 FFPVFlightTelemetry AFPVDronePawn::GetTelemetry() const
@@ -386,10 +463,40 @@ FVector AFPVDronePawn::GetVelocityMps() const
 
 void AFPVDronePawn::ApplyCameraSettings(const FFPVCameraSettings& CameraSettings)
 {
-	if (FpvCamera == nullptr)
+	if (CameraRig != nullptr)
 	{
-		return;
+		CameraRig->ApplySettings(CameraSettings);
 	}
-	FpvCamera->SetRelativeRotation(FRotator(CameraSettings.FpvUptiltDeg, 0.0f, 0.0f));
-	FpvCamera->SetFieldOfView(CameraSettings.FpvFovDeg);
+}
+
+void AFPVDronePawn::SetCameraView(EFPVCameraView View)
+{
+	if (CameraRig != nullptr)
+	{
+		CameraRig->SetView(View);
+	}
+}
+
+void AFPVDronePawn::ToggleCameraView()
+{
+	if (CameraRig != nullptr)
+	{
+		CameraRig->ToggleView();
+	}
+}
+
+EFPVCameraView AFPVDronePawn::GetCameraView() const
+{
+	return CameraRig != nullptr ? CameraRig->GetView() : EFPVCameraView::FPV;
+}
+
+void AFPVDronePawn::ApplyBatterySettings(const FFPVBatterySettings& NewBatterySettings)
+{
+	const bool bCellCountChanged = NewBatterySettings.CellCount != BatterySettings.CellCount;
+	BatterySettings = NewBatterySettings;
+	if (bCellCountChanged)
+	{
+		// A different pack: start full.
+		Battery.Reset(BatterySettings);
+	}
 }

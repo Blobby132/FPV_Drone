@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Drone/FPVBatterySim.h"
 #include "Flight/FPVFlightTypes.h"
 #include "Physics/FPVDronePhysicsBridge.h"
 #include "Settings/FPVSettingsTypes.h"
@@ -13,6 +14,8 @@
 
 class UBoxComponent;
 class UCameraComponent;
+class UFPVCameraRigComponent;
+class USpringArmComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UMaterialInterface;
@@ -53,9 +56,23 @@ public:
 
 	UBoxComponent* GetBody() const { return Body; }
 	UCameraComponent* GetFpvCamera() const { return FpvCamera; }
+	UFPVCameraRigComponent* GetCameraRig() const { return CameraRig; }
 
-	/** Apply FPV camera uptilt / FOV. */
+	/** Apply FPV uptilt / FOVs / chase distance. */
 	void ApplyCameraSettings(const FFPVCameraSettings& CameraSettings);
+	void SetCameraView(EFPVCameraView View);
+	void ToggleCameraView();
+	EFPVCameraView GetCameraView() const;
+
+	/** Cosmetic battery (OSD). */
+	void ApplyBatterySettings(const FFPVBatterySettings& NewBatterySettings);
+	const FFPVBatteryState& GetBatteryState() const { return Battery.GetState(); }
+
+	/** Seconds since the last spawn/reset. */
+	float GetFlightTimeSeconds() const { return FlightTimeSeconds; }
+
+	/** Height of the drone's underside above the ground at the launch point (m). */
+	float GetAltitudeMeters() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -71,6 +88,9 @@ private:
 	void UnregisterPhysicsCallback();
 	void PushBodyToPhysicsThread();
 	void UpdatePropVisuals(float DeltaSeconds);
+	void UpdateBattery(float DeltaSeconds);
+	/** Finds the ground below a location (line trace) and stores it as the altitude reference. */
+	void UpdateHomeGround(const FVector& FromLocation);
 
 	/** Physics body (root). Collision box roughly covering the frame and props. */
 	UPROPERTY(VisibleAnywhere, Category = "Drone")
@@ -78,6 +98,16 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Drone")
 	TObjectPtr<UCameraComponent> FpvCamera;
+
+	/** Debug chase camera on a spring arm. */
+	UPROPERTY(VisibleAnywhere, Category = "Drone")
+	TObjectPtr<USpringArmComponent> ChaseArm;
+
+	UPROPERTY(VisibleAnywhere, Category = "Drone")
+	TObjectPtr<UCameraComponent> ChaseCamera;
+
+	UPROPERTY(VisibleAnywhere, Category = "Drone")
+	TObjectPtr<UFPVCameraRigComponent> CameraRig;
 
 	/** All visual-only meshes (no collision). */
 	UPROPERTY(VisibleAnywhere, Category = "Drone|Visuals")
@@ -102,6 +132,11 @@ private:
 	EFPVFlightMode FlightMode = EFPVFlightMode::Angle;
 
 	FFPVPilotCommand LastCommand;
+	FFPVBatterySim Battery;
+	FFPVBatterySettings BatterySettings;
+	float FlightTimeSeconds = 0.0f;
+	/** World Z (cm) of the ground at the launch point. */
+	double HomeGroundZCm = 0.0;
 	float PropAnglesDeg[FPVQuad::NumMotors] = { 0.0f, 45.0f, 90.0f, 135.0f };
 
 	TSharedPtr<FFPVDronePhysicsBridge, ESPMode::ThreadSafe> PhysicsBridge;

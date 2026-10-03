@@ -10,6 +10,7 @@
 
 #include "Core/FPVGameMode.h"
 #include "Drone/FPVDronePawn.h"
+#include "Input/FPVGamepadKeys.h"
 #include "Input/FPVInputConfig.h"
 #include "Settings/FPVSettingsSubsystem.h"
 #include "FPVDrone.h"
@@ -28,6 +29,21 @@ const FFPVUserSettings& AFPVPlayerController::GetSettings() const
 		return Settings->GetSettings();
 	}
 	return FallbackSettings;
+}
+
+void AFPVPlayerController::UpdateSettings(const FFPVUserSettings& NewSettings)
+{
+	if (UFPVSettingsSubsystem* Settings = UFPVSettingsSubsystem::Get(this))
+	{
+		// The subsystem broadcasts OnSettingsChanged, which lands in HandleSettingsChanged.
+		Settings->SetSettings(NewSettings);
+	}
+	else
+	{
+		FallbackSettings = NewSettings;
+		FallbackSettings.Sanitize();
+		HandleSettingsChanged(FallbackSettings);
+	}
 }
 
 AFPVDronePawn* AFPVPlayerController::GetDrone() const
@@ -102,6 +118,10 @@ void AFPVPlayerController::SetupInputComponent()
 	// Utility buttons fire once per press.
 	EnhancedInput->BindAction(InputConfig->GetButtonAction(EFPVButtonAction::ToggleFlightMode), ETriggerEvent::Started, this, &AFPVPlayerController::OnToggleFlightMode);
 	EnhancedInput->BindAction(InputConfig->GetButtonAction(EFPVButtonAction::ResetDrone), ETriggerEvent::Started, this, &AFPVPlayerController::OnResetDrone);
+	EnhancedInput->BindAction(InputConfig->GetButtonAction(EFPVButtonAction::ToggleCamera), ETriggerEvent::Started, this, &AFPVPlayerController::OnToggleCamera);
+	EnhancedInput->BindAction(InputConfig->GetButtonAction(EFPVButtonAction::CameraTiltUp), ETriggerEvent::Started, this, &AFPVPlayerController::OnCameraTiltUp);
+	EnhancedInput->BindAction(InputConfig->GetButtonAction(EFPVButtonAction::CameraTiltDown), ETriggerEvent::Started, this, &AFPVPlayerController::OnCameraTiltDown);
+	EnhancedInput->BindAction(InputConfig->GetButtonAction(EFPVButtonAction::ToggleInputDebug), ETriggerEvent::Started, this, &AFPVPlayerController::OnToggleInputDebug);
 
 	AddFlightMappingContext();
 }
@@ -127,9 +147,11 @@ void AFPVPlayerController::ApplySettingsToDrone(const FFPVUserSettings& Settings
 	}
 	Drone->ApplyTuning(Settings.Drone);
 	Drone->ApplyCameraSettings(Settings.Camera);
+	Drone->ApplyBatterySettings(Settings.Battery);
 	if (bResetFlightMode)
 	{
 		Drone->SetFlightMode(Settings.DefaultFlightMode);
+		Drone->SetCameraView(Settings.Camera.DefaultView);
 	}
 }
 
@@ -152,7 +174,19 @@ void AFPVPlayerController::PlayerTick(float DeltaTime)
 {
 	// Super processes this frame's input (updates the Enhanced Input action values).
 	Super::PlayerTick(DeltaTime);
+	TrackLastPressedKey();
 	UpdateFlightInput(DeltaTime);
+}
+
+void AFPVPlayerController::TrackLastPressedKey()
+{
+	for (const FKey& Key : FPVGamepadKeys::GetButtons())
+	{
+		if (WasInputKeyJustPressed(Key))
+		{
+			LastPressedKey = Key;
+		}
+	}
 }
 
 void AFPVPlayerController::UpdateFlightInput(float DeltaTime)
@@ -191,4 +225,35 @@ void AFPVPlayerController::OnResetDrone()
 		const FVector Location = Drone->GetActorLocation() + FVector(0.0, 0.0, 100.0);
 		Drone->ResetDrone(FTransform(FRotator(0.0, Drone->GetActorRotation().Yaw, 0.0), Location));
 	}
+}
+
+void AFPVPlayerController::OnToggleCamera()
+{
+	if (AFPVDronePawn* Drone = GetDrone())
+	{
+		Drone->ToggleCameraView();
+	}
+}
+
+void AFPVPlayerController::OnCameraTiltUp()
+{
+	AdjustCameraTilt(GetSettings().Camera.TiltStepDeg);
+}
+
+void AFPVPlayerController::OnCameraTiltDown()
+{
+	AdjustCameraTilt(-GetSettings().Camera.TiltStepDeg);
+}
+
+void AFPVPlayerController::AdjustCameraTilt(float DeltaDegrees)
+{
+	// The tilt is part of the settings, so the menu shows it and it is saved with everything else.
+	FFPVUserSettings NewSettings = GetSettings();
+	NewSettings.Camera.FpvUptiltDeg = FMath::Clamp(NewSettings.Camera.FpvUptiltDeg + DeltaDegrees, -10.0f, 80.0f);
+	UpdateSettings(NewSettings);
+}
+
+void AFPVPlayerController::OnToggleInputDebug()
+{
+	bShowInputDebug = !bShowInputDebug;
 }

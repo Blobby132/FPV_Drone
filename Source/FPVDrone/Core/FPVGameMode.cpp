@@ -6,6 +6,7 @@
 
 #include "Drone/FPVDronePawn.h"
 #include "Input/FPVPlayerController.h"
+#include "UI/FPVHUD.h"
 #include "World/FPVTestEnvironment.h"
 #include "FPVDrone.h"
 
@@ -13,6 +14,7 @@ AFPVGameMode::AFPVGameMode()
 {
 	DefaultPawnClass = AFPVDronePawn::StaticClass();
 	PlayerControllerClass = AFPVPlayerController::StaticClass();
+	HUDClass = AFPVHUD::StaticClass();
 	bStartPlayersAsSpectators = false;
 }
 

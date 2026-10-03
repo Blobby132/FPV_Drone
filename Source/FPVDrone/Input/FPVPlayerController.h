@@ -32,6 +32,14 @@ public:
 	/** The active settings (from UFPVSettingsSubsystem, or defaults if unavailable). */
 	const FFPVUserSettings& GetSettings() const;
 
+	/** Replace the active settings (goes through the settings subsystem so every listener updates). */
+	void UpdateSettings(const FFPVUserSettings& NewSettings);
+
+	bool IsInputDebugVisible() const { return bShowInputDebug; }
+
+	/** Most recently pressed gamepad button (for the input debug overlay). */
+	const FKey& GetLastPressedKey() const { return LastPressedKey; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -47,15 +55,24 @@ private:
 	void HandleSettingsChanged(const FFPVUserSettings& NewSettings);
 	void ApplySettingsToDrone(const FFPVUserSettings& Settings, bool bResetFlightMode);
 
+	void TrackLastPressedKey();
+	void AdjustCameraTilt(float DeltaDegrees);
+
 	// ---- Button handlers --------------------------------------------------------------------
 	void OnToggleFlightMode();
 	void OnResetDrone();
+	void OnToggleCamera();
+	void OnCameraTiltUp();
+	void OnCameraTiltDown();
+	void OnToggleInputDebug();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UFPVInputConfig> InputConfig;
 
 	FFPVStickProcessor StickProcessor;
 	FFPVStickValues RawSticks;
+	bool bShowInputDebug = false;
+	FKey LastPressedKey;
 	FDelegateHandle SettingsChangedHandle;
 
 	/** Used only if the settings subsystem is unavailable. */

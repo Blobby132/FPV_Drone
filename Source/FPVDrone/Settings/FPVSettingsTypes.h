@@ -447,6 +447,32 @@ struct FFPVFeedbackSettings
 };
 
 // ---------------------------------------------------------------------------------------------
+// Battery (cosmetic: shown on the OSD, does not limit thrust yet)
+// ---------------------------------------------------------------------------------------------
+
+USTRUCT(BlueprintType)
+struct FFPVBatterySettings
+{
+	GENERATED_BODY()
+
+	/** LiPo cells in series (6S is typical for a 5" freestyle quad). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battery", meta = (ClampMin = "1", ClampMax = "8"))
+	int32 CellCount = 6;
+
+	/** Pack capacity (mAh). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battery", meta = (ClampMin = "200.0", ClampMax = "10000.0"))
+	float CapacityMah = 1300.0f;
+
+	/** Pack current draw at 100% motor output (A). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battery", meta = (ClampMin = "1.0", ClampMax = "300.0"))
+	float MaxCurrentAmps = 120.0f;
+
+	/** Pack internal resistance (ohm). Causes the voltage to sag under load. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battery", meta = (ClampMin = "0.0", ClampMax = "0.5"))
+	float InternalResistanceOhm = 0.025f;
+};
+
+// ---------------------------------------------------------------------------------------------
 // Button bindings (gamepad key names, e.g. "Gamepad_FaceButton_Top")
 // ---------------------------------------------------------------------------------------------
 
@@ -515,6 +541,9 @@ struct FFPVUserSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FFPVFeedbackSettings Feedback;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FFPVBatterySettings Battery;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FFPVButtonBindings Bindings;

@@ -12,7 +12,7 @@ Milestone progress:
 
 - [x] 1. Project skeleton, GameMode, drone pawn, controller input, Angle mode
 - [x] 2. Acro mode, mode toggle, throttle modes
-- [ ] 3. Cameras, OSD, input debug overlay
+- [x] 3. Cameras, OSD, input debug overlay
 - [ ] 4. Runtime environment and lighting
 - [ ] 5. Settings menu, JSON persistence, rumble
 
@@ -51,9 +51,43 @@ Flying uses only the two thumbsticks, like an RC radio (Mode 2 by default):
 |---|---|---|
 | Triangle | Toggle Angle / Acro | M |
 | Circle | Reset / respawn drone | R |
-| WASD / arrows | Left / right stick | |
+| Square | Toggle FPV / chase camera | C |
+| D-pad up / down | FPV camera uptilt +/- 5° | Page Up / Page Down |
+| Create (Share) | Toggle input debug overlay | I |
+| | Left stick / right stick | WASD / arrow keys |
 
-*(More buttons are added in later milestones.)*
+Triggers and bumpers are not used for flying.
+
+### On-screen display
+
+- **Top left:** flight mode (ANGLE / ACRO), throttle mode, camera uptilt.
+- **Top right:** battery pack voltage, per-cell voltage, % remaining, current and mAh used, flight timer.
+  The battery is cosmetic: a 6S 1300 mAh LiPo that drains with motor output and sags under load.
+- **Bottom:** speed in km/h and m/s (left), throttle % with a bar (center), and altitude in m (right).
+  Altitude is measured from the drone's underside to the ground at the launch point.
+- A center crosshair in FPV, plus "CHASE CAM" and a blinking "LOW BATTERY" warning when they apply.
+
+### Input debug overlay (Create button or `I`)
+
+Use this to check what Unreal actually receives from the controller:
+
+- **Stick boxes:** white dot = raw Enhanced Input value, green dot = after dead zone, curve,
+  inversion and smoothing. Pushing a stick *up* must move the dot *up*.
+- **Raw axes:** engine key values for both sticks and both triggers. With the sticks released,
+  values should sit near 0. If they jump from 0 straight to about 0.25, the engine's default
+  dead zone is still active (see *Needs verification*).
+- **Buttons:** every gamepad button, lit while held, plus the last button pressed. Use this to confirm
+  the DualSense face buttons, D-pad and Options/Create map to the expected keys.
+- **Pilot command and flight controller:** throttle/roll/pitch/yaw sent to the drone; rate setpoint
+  vs gyro per axis; the four motor outputs; mixer saturation; and the measured physics rate in Hz.
+  The physics rate should read about 240 Hz.
+
+### Cameras
+
+- **FPV:** fixed to the frame at 25° uptilt with a 120° horizontal FOV. Change the uptilt live with
+  the D-pad; both values are also in the settings menu. The drone's own meshes are hidden in FPV.
+- **Chase:** a spring-arm camera behind the drone that follows its heading with a level horizon.
+  It's meant for debugging.
 
 ### Flight modes (Triangle toggles at any time)
 
@@ -96,6 +130,13 @@ Source/FPVDrone/
   Settings/    FPVSettingsTypes         every tunable value (USTRUCTs)
                FPVSettingsSubsystem     active settings + change notifications
   World/       FPVTestEnvironment       runtime basic-shape world
+  Camera/      FPVCameraRigComponent    FPV / chase camera switching, uptilt, FOV
+  UI/          FPVHUD                   canvas HUD: gathers data, calls the renderers below
+               FPVOsdRenderer           Betaflight-style OSD
+               FPVInputDebugRenderer    raw input / telemetry overlay
+               FPVHudCanvas             resolution-independent drawing helpers
+  Drone/       FPVBatterySim            cosmetic LiPo model for the OSD
+  Input/       FPVGamepadKeys           gamepad key list + PlayStation button names
 ```
 
 ## How the flight model works

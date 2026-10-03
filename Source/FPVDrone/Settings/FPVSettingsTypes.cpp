@@ -115,6 +115,11 @@ void FFPVUserSettings::Sanitize()
 	ClampValue(Feedback.RumbleStrength, 0.0f, 1.0f);
 	ClampValue(Feedback.ImpactThresholdMps, 0.5f, 20.0f);
 
+	Battery.CellCount = FMath::Clamp(Battery.CellCount, 1, 8);
+	ClampValue(Battery.CapacityMah, 200.0f, 10000.0f);
+	ClampValue(Battery.MaxCurrentAmps, 1.0f, 300.0f);
+	ClampValue(Battery.InternalResistanceOhm, 0.0f, 0.5f);
+
 	// Restore any binding that was left empty (e.g. a hand-edited file).
 	const FFPVButtonBindings DefaultBindings;
 	for (int32 Index = 0; Index < static_cast<int32>(EFPVButtonAction::Count); ++Index)
